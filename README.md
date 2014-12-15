@@ -1,6 +1,6 @@
 ##Component Orchestration with Behavior Trees
 
-The blue component is chasing the green ones (opportunities) and needs to avoid the red component (threat).
+The blue component is chasing the green ones (opportunities) which are static and needs to avoid the red component which is chasing it(threat).
 
 ![ ](./screen.png)
 
