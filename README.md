@@ -1,5 +1,7 @@
 ##Component Orchestration with Behavior Trees
 
+The blue component is chasing the green ones (opportunities) and needs to avoid the red one (threat)
+
 ![ ](./screen.png)
 
 ### Tree Definition
