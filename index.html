@@ -1,0 +1,276 @@
+
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+    <title>Behavior Tree Example</title>
+
+    <!-- CREATEJS -->
+    <script type="text/javascript" src="createjs-2013.12.12.min.js"></script>
+
+    <!-- ALL OUR CLASSES HERE -->
+    <script type="text/javascript" src="b3core.0.1.0.js"></script>
+
+    <!-- CSS -->
+    <link href="style.css" rel="stylesheet">
+
+    <!-- GAME CODE -->
+    <script type="text/javascript">
+        function point(x, y) {
+            return {x:x, y:y};
+        }
+        function add(a, b) {
+            return point(a.x + b.x, a.y + b.y);
+        }
+        function subtract(a, b) {
+            return point(a.x - b.x, a.y - b.y);
+        }
+        function scale(A, b) {
+            return point(A.x*b, A.y*b);
+        }
+        function dot(a, b) {
+            return a.x*b.x + a.y*b.y;
+        }
+        function magnitude(pt) {
+            return Math.sqrt(dot(pt, pt));
+        }
+        function normalize(pt) {
+            return scale(pt, 1.0 / magnitude(pt));
+        }
+
+        function position(current, target, speed) {
+            var offset = subtract(target, current);
+            var advance = scale(normalize(offset), speed);
+            return add(current, advance);
+        }
+
+        function closest(pt, targets) {
+            var squared_distance = Number.MAX_VALUE;
+            var index;
+            var target;
+            for (var i = 0; i < targets.length; i++) {
+                var delta = subtract(pt, targets[i]);
+                var current = dot(delta, delta);
+                if (current < squared_distance) {
+                    squared_distance = current;
+                    index = i;
+                    target = targets[i];
+                }
+            }
+            return {
+                index: index,
+                target: target
+            }
+        }
+
+
+        function setNormalizedPosition(target, pos, size, offset) {
+            target.x = pos.x < -offset ? pos.x + size : pos.x > size + offset ? pos.x - size : pos.x;
+            target.y = pos.y < -offset ? pos.y + size : pos.y > size + offset ? pos.y - size : pos.y;
+        }
+
+
+        // CREATEJS
+        var canvas;
+        var stage;
+
+        // BEHAVIORS
+        var tree;
+        var blackboard;
+
+        var screenSize = 400;
+        var actorSize = 10;
+
+        var opportunityCount = 3;
+
+        var tickInterval = 200; //ms
+        var threatSpeed = 7;
+        var subjectSpeed = 20;
+
+        var threatProximity = 49;
+        var opportunityProximity = 10;
+
+        var createAgent = function(color) {
+            return {
+                color: color,
+                x: Math.random()*screenSize,
+                y: Math.random()*screenSize
+            }
+        };
+
+
+        var createAgentView = function(agentState) {
+            view = new createjs.Shape();
+            view.graphics.beginFill(agentState.color);
+            view.graphics.drawRect(-actorSize, -actorSize, actorSize, actorSize);
+            view.x = agentState.x;
+            view.y = agentState.y;
+
+            return view;
+        };
+
+        var updateAgentView = function(agentView, agentState) {
+            agentView.x = agentState.x;
+            agentView.y = agentState.y;
+        };
+
+        var SeekPrey = b3.Class(b3.Action);
+        SeekPrey.prototype.name = 'SeekPrey';
+        SeekPrey.prototype.tick = function(tick) {
+
+            var threat = tick.blackboard.get('threat');
+            var pos = position(threat, tick.blackboard.get('subject'), threatSpeed);
+            setNormalizedPosition(threat, pos, screenSize, actorSize);
+            updateAgentView(tick.blackboard.get('threatView'), threat);
+
+            return b3.SUCCESS;
+        };
+
+        var ThreatDetected = b3.Class(b3.Condition);
+        ThreatDetected.prototype.name = 'ThreatDetected';
+        ThreatDetected.prototype.tick = function(tick) {
+
+            if (magnitude(subtract(tick.blackboard.get('subject'), tick.blackboard.get('threat'))) < threatProximity) {
+                return b3.SUCCESS;
+            }
+            return b3.FAILURE;
+        };
+
+        var AvoidThreat = b3.Class(b3.Action);
+        AvoidThreat.prototype.name = 'AvoidThreat';
+        AvoidThreat.prototype.tick = function(tick) {
+
+            var subject = tick.blackboard.get('subject');
+            var pos = position(subject, tick.blackboard.get('threat'), - subjectSpeed/2);
+            setNormalizedPosition(subject, pos, screenSize, actorSize);
+
+            updateAgentView(tick.blackboard.get('subjectView'), subject);
+
+            tick.blackboard.set('targetOpportunity', null);
+
+            return b3.SUCCESS;
+        };
+
+        var SeekOpportunity = b3.Class(b3.Action);
+        SeekOpportunity.prototype.name = 'SeekOpportunity';
+        SeekOpportunity.prototype.tick = function(tick) {
+
+            var subject = tick.blackboard.get('subject');
+            var closestOpportunity = tick.blackboard.get('targetOpportunity');
+            if (!closestOpportunity) {
+                closestOpportunity = closest(subject, tick.blackboard.get('opportunities'));
+                tick.blackboard.set('targetOpportunity', closestOpportunity);
+            }
+            var pos = position(subject, closestOpportunity.target, subjectSpeed);
+            setNormalizedPosition(subject, pos, screenSize, actorSize);
+
+            updateAgentView(tick.blackboard.get('subjectView'), subject);
+
+            return b3.SUCCESS;
+        };
+
+        var TakeOpportunity = b3.Class(b3.Action);
+        TakeOpportunity.prototype.name = 'SeekOpportunity';
+        TakeOpportunity.prototype.tick = function(tick) {
+
+
+            var subject = tick.blackboard.get('subject');
+            var closestOpportunity = tick.blackboard.get('targetOpportunity');
+
+            if (magnitude(subtract(subject, closestOpportunity.target)) < opportunityProximity) {
+                var eaten = stage.removeChild(tick.blackboard.get('opportunityViews')[closestOpportunity.index]); //TODO notify
+
+                tick.blackboard.set('targetOpportunity', null);
+
+                var opportunity = createAgent('green');
+                var opportunityView = createAgentView(opportunity);
+                stage.addChild(opportunityView);
+
+                var opportunities = tick.blackboard.get('opportunities');
+                opportunities.splice(closestOpportunity.index, 1);
+                opportunities.push(opportunity);
+                tick.blackboard.set('opportunities', opportunities);
+
+                var opportunityViews = tick.blackboard.get('opportunityViews');
+                opportunityViews.splice(closestOpportunity.index, 1);
+                opportunityViews.push(opportunityView);
+                tick.blackboard.set('opportunityViews', opportunityViews);//TODO notify
+            }
+
+            return b3.SUCCESS;
+        };
+
+        function start() {
+            // CREATEJS
+            canvas     = document.getElementById('canvas');
+            stage      = new createjs.Stage(canvas);
+
+            var threat = createAgent('red');
+            var threatView = createAgentView(threat);
+            stage.addChild(threatView);
+
+            var subject = createAgent('blue');
+            var subjectView = createAgentView(subject);
+            stage.addChild(subjectView);
+
+            var opportunities = [];
+            var opportunityViews = [];
+
+            for (var i = 0; i < opportunityCount; i++) {
+                var opportunity = createAgent('green');
+                var opportunityView = createAgentView(opportunity);
+                stage.addChild(opportunityView);
+
+                opportunities.push(opportunity);
+                opportunityViews.push(opportunityView);
+            }
+
+            stage.update();
+
+            // BEHAVIORS
+            blackboard = new b3.Blackboard();
+            tree       = new b3.BehaviorTree();
+            tree.root =
+                    new b3.Sequence({
+                        children: [
+                            new b3.Priority({
+                                children: [
+                                    new b3.Sequence({
+                                        children: [
+                                            new ThreatDetected(),
+                                            new AvoidThreat()
+                                        ]
+                                    }),
+                                    new b3.Sequence({
+                                        children: [
+                                            new SeekOpportunity(),
+                                            new TakeOpportunity()
+                                        ]
+                                    })]
+                            }),
+                            new SeekPrey()]
+                    });
+
+            blackboard.set('threat', threat);
+            blackboard.set('threatView', threatView);
+            blackboard.set('subject', subject);
+            blackboard.set('subjectView', subjectView);
+            blackboard.set('opportunities', opportunities);
+            blackboard.set('opportunityViews', opportunityViews);
+
+            createjs.Ticker.setInterval(tickInterval)
+            createjs.Ticker.addEventListener('tick', onTick);
+        }
+
+        function onTick() {
+            tree.tick({}, blackboard);
+            stage.update();
+        }
+    </script>
+</head>
+
+<body onload="start();">
+<div class="info">Threats and Opportunities - Behavior Tree Example</div>
+<canvas id="canvas" width="400" height="400">JS not enabled</canvas>
+</body>
+</html>
