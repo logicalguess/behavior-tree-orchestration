@@ -1,6 +1,8 @@
 ##Component Orchestration with Behavior Trees
 
-The blue component is chasing the green ones (opportunities) which are static and needs to avoid the red component which is chasing it(threat).
+The blue component is chasing the green ones (opportunities) which are static and needs to avoid the red component which is chasing it (threat).
+
+While behavior trees are used in game development, business applications could also benefit from such a standard.
 
 ![ ](./screen.png)
 
