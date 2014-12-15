@@ -114,9 +114,9 @@
             agentView.y = agentState.y;
         };
 
-        var SeekPrey = b3.Class(b3.Action);
-        SeekPrey.prototype.name = 'SeekPrey';
-        SeekPrey.prototype.tick = function(tick) {
+        var SeekSubject = b3.Class(b3.Action);
+        SeekSubject.prototype.name = 'SeekSubject';
+        SeekSubject.prototype.tick = function(tick) {
 
             var threat = tick.blackboard.get('threat');
             var pos = position(threat, tick.blackboard.get('subject'), threatSpeed);
@@ -248,7 +248,7 @@
                                         ]
                                     })]
                             }),
-                            new SeekPrey()]
+                            new SeekSubject()]
                     });
 
             blackboard.set('threat', threat);
